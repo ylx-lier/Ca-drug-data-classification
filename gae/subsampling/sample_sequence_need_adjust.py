@@ -126,5 +126,5 @@ def subsample(node_features, target_row, target_col):
 
 file = "/home/featurize/work/ylx/MEA/overfitting/220918_0911_05_F53H9_ACM_GABA_3_spike.csv"
 df = pd.read_csv(file)
-df = subsample(df.values, 111, 4570)
+df = subsample(df.values, 111, 2048)
 matrix_to_image(df, output_path="/home/featurize/work/ylx/MEA/gae/subsampling/sample_sequence.png")
