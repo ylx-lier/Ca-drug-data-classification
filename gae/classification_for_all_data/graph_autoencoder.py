@@ -1,8 +1,8 @@
 # graph_autoencoder.py
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, global_mean_pool, global_max_pool, global_add_pool
-from torch_geometric.data import Data, Batch
+from torch_geometric.nn import GCNConv
+from torch_geometric.data import Data
 import torch.nn.functional as F
 from itertools import combinations
 import numpy as np
@@ -54,7 +54,7 @@ class Encoder(torch.nn.Module):
         self.conv3 = GCNConv(hidden_channels, hidden_channels)
         # self.out = torch.nn.Linear(hidden_channels, hidden_channels)
         
-    def forward(self, x, edge_index, batch):
+    def forward(self, x, edge_index):
         x = self.conv1(x, edge_index)
         x = F.relu(x)
         x = self.conv2(x, edge_index)
@@ -62,7 +62,7 @@ class Encoder(torch.nn.Module):
         x = self.conv3(x, edge_index)
         x = F.relu(x)
         # x = self.out(x)
-        x = global_mean_pool(x, batch)
+        x = x.mean(dim=0)
         return x
 
 class Decoder(torch.nn.Module):
@@ -73,7 +73,7 @@ class Decoder(torch.nn.Module):
         self.conv3 = GCNConv(hidden_channels, num_node_features)
         # self.out = torch.nn.Linear(num_node_features, num_node_features)
         
-    def forward(self, x, edge_index, batch):
+    def forward(self, x, edge_index):
         x = self.conv1(x, edge_index)
         x = F.relu(x)
         x = self.conv2(x, edge_index)
@@ -89,8 +89,8 @@ class GraphAutoEncoder(torch.nn.Module):
         self.encoder = Encoder(num_node_features, hidden_channels)
         self.decoder = Decoder(hidden_channels, num_node_features)
         
-    def forward(self, x, edge_index, batch):
-        embedding = self.encoder(x, edge_index, batch)
+    def forward(self, x, edge_index):
+        embedding = self.encoder(x, edge_index)
         encoded = embedding.repeat(x.shape[0], 1)
         # def check(feature):
         #     column_mean = feature.mean(dim=0)
@@ -99,7 +99,7 @@ class GraphAutoEncoder(torch.nn.Module):
         #     print(smse.item())
         
             # print("encoded:", encoded)
-        decoded = self.decoder(encoded, edge_index, batch)
+        decoded = self.decoder(encoded, edge_index)
         # if epoch % 1000 == 0:
         #     check(decoded)
         
@@ -107,7 +107,7 @@ class GraphAutoEncoder(torch.nn.Module):
             
         return embedding, decoded
     
-def train_graph_autoencoder(model, graphs, epochs=100, batch_size=8, lr=0.01):
+def train_graph_autoencoder(model, graphs, epochs=100, lr=0.01):
     """Trains the graph autoencoder."""
     """
     Trains the graph autoencoder with batch support.
@@ -121,28 +121,27 @@ def train_graph_autoencoder(model, graphs, epochs=100, batch_size=8, lr=0.01):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     model.train()
-    data_list = []
-    for graph in graphs:
-        num_nodes = graph.shape[0]  # Number of nodes
-        edge_index = generate_full_edges(num_nodes)  # Fully connected edges
-        x = torch.tensor(graph, dtype=torch.float)
-        data = Data(x=x, edge_index=edge_index)
-        data_list.append(data)
+    # for graph in graphs:
+    #     num_nodes = graph.shape[0]  # Number of nodes
+    #     edge_index = generate_full_edges(num_nodes)  # Fully connected edges
+    #     x = torch.tensor(graph, dtype=torch.float)
+    #     data = Data(x=x, edge_index=edge_index)
+    #     data_list.append(data)
         
     for epoch in range(epochs):
         total_loss = 0
         
-        for i in range(0, len(data_list), batch_size):
+        for graph in graphs:
             # 把生成边的步骤放在循环内部也可以。。先不改了
-            batch = Batch.from_data_list(data_list[i:i+batch_size])
-            # num_nodes = graph.shape[0]  # Number of nodes
-            # edge_index = generate_full_edges(num_nodes)  # Fully connected edges
-            # x = torch.tensor(graph, dtype=torch.float)  # Node features
+            # batch = Batch.from_data_list(data_list[i:i+batch_size])
+            num_nodes = graph.shape[0]  # Number of nodes
+            edge_index = generate_full_edges(num_nodes)  # Fully connected edges
+            x = torch.tensor(graph, dtype=torch.float)  # Node features
 
             # Forward pass
             optimizer.zero_grad()
-            _, decoded = model(batch.x, batch.edge_index, batch.batch)
-            loss = F.mse_loss(decoded, batch.x)  # Reconstruction loss
+            _, decoded = model(x, edge_index)
+            loss = F.mse_loss(decoded, x)  # Reconstruction loss
             loss.backward()
             optimizer.step()
 
@@ -151,23 +150,23 @@ def train_graph_autoencoder(model, graphs, epochs=100, batch_size=8, lr=0.01):
         print(f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss:.4f}")
     return model
 
-def generate_graph_embeddings(model, graphs, batch_size=8):
+def generate_graph_embeddings(model, graphs):
     """Generates graph embeddings using the trained model."""
     model.eval()
     embeddings = []
-    data_list = []
+  
+    # for graph in graphs:
+    #     num_nodes = graph.shape[0]
+    #     edge_index = generate_full_edges(num_nodes)
+    #     x = torch.tensor(graph, dtype=torch.float)
+    #     data = Data(x=x, edge_index=edge_index)
+    #     data_list.append(data)
+        
     for graph in graphs:
         num_nodes = graph.shape[0]
-        edge_index = generate_full_edges(num_nodes)
+        edge_index = generate_full_edges(num_nodes)  # Fully connected edges
         x = torch.tensor(graph, dtype=torch.float)
-        data = Data(x=x, edge_index=edge_index)
-        data_list.append(data)
-        
-    for i in range(0, len(data_list), batch_size):
-        # num_nodes = graph.shape[0]
-        # edge_index = generate_full_edges(num_nodes)  # Fully connected edges
-        # x = torch.tensor(graph, dtype=torch.float)
-        batch = Batch.from_data_list(data_list[i:i+batch_size])
-        graph_embedding, _ = model(batch.x, batch.edge_index, batch.batch)  # Extract graph embedding
+        # batch = Batch.from_data_list(data_list[i:i+batch_size])
+        graph_embedding, _ = model(x, edge_index)  # Extract graph embedding
         embeddings.append(graph_embedding.detach().numpy())
     return np.concatenate(embeddings, axis=0)

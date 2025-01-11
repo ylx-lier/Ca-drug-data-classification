@@ -19,10 +19,10 @@ def train_and_evaluate(folder_path, model_save_path):
     model = GraphAutoEncoder(num_node_features=input_dim, hidden_channels=64)
 
     # Train GAE
-    model = train_graph_autoencoder(model, graphs, batch_size=8, epochs=50, lr=0.01)
+    model = train_graph_autoencoder(model, graphs, epochs=50, lr=0.01)
 
     # Generate graph embeddings
-    embeddings = generate_graph_embeddings(model, graphs, batch_size=8)
+    embeddings = generate_graph_embeddings(model, graphs)
 
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(embeddings, y_encoded, test_size=0.2, random_state=42)
