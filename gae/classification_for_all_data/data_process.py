@@ -3,6 +3,7 @@
 import os
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
+from resize_interpolate import linear_interpolate
 
 def extract_label(filename):
     """Extracts the label from the filename."""
@@ -18,10 +19,12 @@ def load_graph_data(folder_path):
             filepath = os.path.join(folder_path, file)
             matrix = np.loadtxt(filepath, delimiter=',')
             label = extract_label(file)
-
+            matrix = linear_interpolate(matrix, 4570)
             graphs.append(matrix)
             labels.append(label)
-
+    print(f"Total samples loaded: {len(graphs)}")
+    print(f"Sample matrix shape: {graphs[0].shape}")
+    print(f"Unique labels: {np.unique(labels)}")
     return graphs, np.array(labels)
 
 def encode_labels(labels):
