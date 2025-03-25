@@ -292,7 +292,7 @@ def generate_graph_embeddings(model, graphs):
 # graph_autoencoder.py
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, global_mean_pool
+from torch_geometric.nn import GCNConv, global_mean_pool, GATConv
 import torch.nn.functional as F
 from itertools import combinations
 import numpy as np
@@ -308,18 +308,27 @@ class Encoder(nn.Module):
     def __init__(self, num_node_features, hidden_channels):
         super().__init__()
         self.conv1 = GCNConv(num_node_features, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, hidden_channels*2)
-        self.conv3 = GCNConv(hidden_channels*2, hidden_channels*4)
-        self.conv4 = GCNConv(hidden_channels*4, hidden_channels*2)
-        self.conv5 = GCNConv(hidden_channels*2, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, hidden_channels)
+        self.conv3 = GCNConv(hidden_channels, hidden_channels*2)
+        self.conv4 = GCNConv(hidden_channels*2, hidden_channels)
+        self.linear = nn.Linear(num_node_features, hidden_channels)
 
     def forward(self, x, edge_index, batch):
+        # print(f"Input shape: {x.shape}")
+        identity = x
         x = F.relu(self.conv1(x, edge_index))
+        # print(f"After conv1: {x.shape}")
         x = F.relu(self.conv2(x, edge_index))
+        # print(f"After conv2: {x.shape}")
         x = F.relu(self.conv3(x, edge_index))
-        x = F.relu(self.conv4(x, edge_index))
-        x = F.relu(self.conv5(x, edge_index))
+        # print(f"After conv3: {x.shape}")
+        x = self.conv4(x, edge_index)
+        # print(f"After conv4: {x.shape}")
+        identity = self.linear(identity)
+        # print(f"Adjusted identity shape: {identity.shape}")
+        x += identity
         x = global_mean_pool(x, batch)
+        # print(f"Final embedding shape: {x.shape}")
         return x
 
 class Decoder(nn.Module):
@@ -343,14 +352,15 @@ class GraphAutoEncoder(nn.Module):
         super().__init__()
         self.encoder = Encoder(num_node_features, hidden_channels)
         self.decoder = Decoder(hidden_channels, num_node_features)
-        self.attention = nn.MultiheadAttention(embed_dim=hidden_channels, num_heads=4)  # 添加注意力
+        self.attention = nn.MultiheadAttention(embed_dim=hidden_channels, num_heads=4)
 
     def forward(self, x, edge_index, batch):
         embedding = self.encoder(x, edge_index, batch)
-        # 将嵌入复制到每个节点
-        embedding = embedding.unsqueeze(0)  # shape: (1, batch_size, hidden_dim)
+        # 注意力增强
+        embedding = embedding.unsqueeze(0)  # (1, batch_size, hidden)
         attn_output, _ = self.attention(embedding, embedding, embedding)
-        embedding = attn_output.squeeze(0)
+        embedding = attn_output.squeeze(0)  # (batch_size, hidden)
+        
         decoded = self.decoder(embedding[batch], edge_index)
         return embedding, decoded
 
@@ -378,6 +388,7 @@ def train_graph_autoencoder(model, graphs, epochs=100, lr=5e-4, batch_size=4):
     
     model.train()
     for epoch in tqdm(range(epochs)):
+        print(torch.cuda.memory_summary())
         total_loss = 0
         for batch in loader:
             batch = batch.to(device)

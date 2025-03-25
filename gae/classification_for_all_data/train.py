@@ -52,14 +52,27 @@ import torch
 from torch_geometric.data import DataLoader
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
+import seaborn as sns
+import datetime
+import pytz
 
-def visualize_embeddings(embeddings, labels, save_path=None):
+china_timezone = pytz.timezone('Asia/Shanghai')
+now = datetime.datetime.now(china_timezone).strftime("%Y-%m-%d_%H-%M-%S")
+
+def visualize_embeddings(embeddings, labels, label_encoder, save_path=None):
     tsne = TSNE(n_components=2)
     vis_data = tsne.fit_transform(embeddings)
     
+    # 将整数编码的标签转换回原始标签
+    original_labels = label_encoder.inverse_transform(labels)
+    
     plt.figure(figsize=(10, 8))
     scatter = plt.scatter(vis_data[:,0], vis_data[:,1], c=labels, alpha=0.6)
-    plt.legend(*scatter.legend_elements(), title="Classes")
+    
+    # 使用原始标签创建图例
+    handles, _ = scatter.legend_elements()
+    plt.legend(handles, label_encoder.classes_, title="Classes")
+    
     plt.title("t-SNE Visualization of Graph Embeddings")
     if save_path:
         plt.savefig(save_path)
@@ -85,12 +98,12 @@ def train_and_evaluate(folder_path, model_save_path):
     model = GraphAutoEncoder(num_node_features=input_dim, hidden_channels=64)
     
     # Train GAE on training graphs only
-    model = train_graph_autoencoder(model, train_graphs, epochs=500, lr=5e-4)
+    model = train_graph_autoencoder(model, train_graphs, epochs=100, lr=5e-4)
     
     # Generate embeddings for train and test sets
     train_embeddings = generate_graph_embeddings(model, train_graphs)
     test_embeddings = generate_graph_embeddings(model, test_graphs)
-    visualize_embeddings(train_embeddings, y_train, save_path="embedding_plot.png")
+    visualize_embeddings(train_embeddings, y_train, label_encoder, save_path=f"/home/featurize/work/ylx/MEA/gae/embedding_plot_{now}.png")
     # Train classifier
     clf = Classifier()
     clf.train(train_embeddings, y_train)
@@ -100,6 +113,12 @@ def train_and_evaluate(folder_path, model_save_path):
     print(f"Accuracy: {metrics['accuracy']:.2f}")
     print("Classification Report:\n", metrics['classification_report'])
     print("Confusion Matrix:\n", metrics['confusion_matrix'])
-    
+    plt.figure(figsize=(10, 7))
+    sns.heatmap(metrics['confusion_matrix'], annot=True, fmt='d', cmap='Blues')
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title('Confusion Matrix')
+    plt.show()
+    plt.savefig(f"/home/featurize/work/ylx/MEA/gae/confusion_matrix_{now}.png")
     clf.save_model(model_save_path)
     return label_encoder, y_pred
