@@ -1,3 +1,4 @@
+'''
 # graph_autoencoder.py
 import torch
 import torch.nn as nn
@@ -6,6 +7,7 @@ from torch_geometric.data import Data
 import torch.nn.functional as F
 from itertools import combinations
 import numpy as np
+from tqdm import tqdm
 
 def generate_full_edges(num_nodes):
     """Dynamically generates fully connected edges."""
@@ -119,33 +121,35 @@ def train_graph_autoencoder(model, graphs, epochs=100, lr=0.01):
         lr: Learning rate
     """
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-
-    model.train()
-    # for graph in graphs:
-    #     num_nodes = graph.shape[0]  # Number of nodes
-    #     edge_index = generate_full_edges(num_nodes)  # Fully connected edges
-    #     x = torch.tensor(graph, dtype=torch.float)
-    #     data = Data(x=x, edge_index=edge_index)
-    #     data_list.append(data)
-        
-    for epoch in range(epochs):
-        total_loss = 0
-        
-        for graph in graphs:
-            # 把生成边的步骤放在循环内部也可以。。先不改了
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    data_list = []   
+    for graph in graphs:
             # batch = Batch.from_data_list(data_list[i:i+batch_size])
             num_nodes = graph.shape[0]  # Number of nodes
             edge_index = generate_full_edges(num_nodes)  # Fully connected edges
             x = torch.tensor(graph, dtype=torch.float)  # Node features
+            data = Data(x=x, edge_index=edge_index)
+            data_list.append(data)
+    
+    
+    model.train()
 
-            # Forward pass
-            optimizer.zero_grad()
-            _, decoded = model(x, edge_index)
-            loss = F.mse_loss(decoded, x)  # Reconstruction loss
-            loss.backward()
-            optimizer.step()
+        
+    for epoch in tqdm(range(epochs)):
+        total_loss = 0
+        for data in data_list:
+            data = data.to(device)
+        
 
-            total_loss += loss.item()
+        # Forward pass
+        optimizer.zero_grad()
+        _, decoded = model(x, edge_index)
+        loss = F.mse_loss(decoded, x)  # Reconstruction loss
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
 
         print(f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss:.4f}")
     return model
@@ -154,6 +158,8 @@ def generate_graph_embeddings(model, graphs):
     """Generates graph embeddings using the trained model."""
     model.eval()
     embeddings = []
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
   
     # for graph in graphs:
     #     num_nodes = graph.shape[0]
@@ -170,3 +176,245 @@ def generate_graph_embeddings(model, graphs):
         graph_embedding, _ = model(x, edge_index)  # Extract graph embedding
         embeddings.append(graph_embedding.detach().numpy())
     return np.concatenate(embeddings, axis=0)
+'''
+'''
+import torch
+import torch.nn as nn
+from torch_geometric.nn import GCNConv
+from torch_geometric.data import Data
+import torch.nn.functional as F
+from itertools import combinations
+import numpy as np
+from tqdm import tqdm
+
+def generate_full_edges(num_nodes):
+    """动态生成全连接的边。"""
+    edges = list(combinations(range(num_nodes), 2))
+    edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+    return edge_index
+
+class Encoder(torch.nn.Module):
+    def __init__(self, num_node_features, hidden_channels):
+        super().__init__()
+        self.conv1 = GCNConv(num_node_features, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, hidden_channels)
+        self.conv3 = GCNConv(hidden_channels, hidden_channels)
+        
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        x = F.relu(x)
+        x = self.conv2(x, edge_index)
+        x = F.relu(x)
+        x = self.conv3(x, edge_index)
+        x = F.relu(x)
+        x = x.mean(dim=0)
+        return x
+
+class Decoder(torch.nn.Module):
+    def __init__(self, hidden_channels, num_node_features):
+        super().__init__()
+        self.conv1 = GCNConv(hidden_channels, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, hidden_channels)
+        self.conv3 = GCNConv(hidden_channels, num_node_features)
+        
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        x = F.relu(x)
+        x = self.conv2(x, edge_index)
+        x = F.relu(x)
+        x = self.conv3(x, edge_index)
+        x = F.leaky_relu(x, 0.5)
+        return x
+
+class GraphAutoEncoder(torch.nn.Module):
+    def __init__(self, num_node_features, hidden_channels):
+        super().__init__()
+        self.encoder = Encoder(num_node_features, hidden_channels)
+        self.decoder = Decoder(hidden_channels, num_node_features)
+        
+    def forward(self, x, edge_index):
+        embedding = self.encoder(x, edge_index)
+        encoded = embedding.repeat(x.shape[0], 1)
+        decoded = self.decoder(encoded, edge_index)
+        return embedding, decoded
+    
+def train_graph_autoencoder(model, graphs, epochs=100, lr=5e-4):
+    """训练图自编码器。"""
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    data_list = []   
+    for graph in graphs:
+        num_nodes = graph.shape[0]  # 节点数量
+        edge_index = generate_full_edges(num_nodes)  # 全连接的边
+        x = torch.tensor(graph, dtype=torch.float).to(device)  # 将 x 移动到正确的设备
+        minmax = lambda x: (x-x.min())/(x.max()-x.min())
+        x = minmax(x)
+        edge_index = edge_index.to(device)  # 将 edge_index 移动到正确的设备
+        data = Data(x=x, edge_index=edge_index)
+        data_list.append(data)
+    
+    model.train()
+        
+    for epoch in tqdm(range(epochs)):
+        total_loss = 0
+        for data in data_list:
+            data = data.to(device)
+        
+            # 前向传播
+            optimizer.zero_grad()
+            _, decoded = model(data.x, data.edge_index)
+            loss = F.mse_loss(decoded, data.x)  # 重建损失
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+
+        print(f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss:.4f}")
+    return model
+
+def generate_graph_embeddings(model, graphs):
+    """使用训练好的模型生成图嵌入。"""
+    model.eval()
+    embeddings = []
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+        
+    for graph in graphs:
+        num_nodes = graph.shape[0]
+        edge_index = generate_full_edges(num_nodes)  # 全连接的边
+        x = torch.tensor(graph, dtype=torch.float).to(device)  # 将 x 移动到正确的设备
+        edge_index = edge_index.to(device)  # 将 edge_index 移动到正确的设备
+        graph_embedding, _ = model(x, edge_index)  # 提取图嵌入
+        embeddings.append(graph_embedding.cpu().detach().numpy())  # 将嵌入移回 CPU 以便转换为 NumPy 数组
+    return np.concatenate(embeddings, axis=0)
+'''
+# graph_autoencoder.py
+import torch
+import torch.nn as nn
+from torch_geometric.nn import GCNConv, global_mean_pool, GATConv
+import torch.nn.functional as F
+from itertools import combinations
+import numpy as np
+from tqdm import tqdm
+from torch_geometric.data import Data, DataLoader
+
+def generate_full_edges(num_nodes):
+    edges = list(combinations(range(num_nodes), 2))
+    edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+    return edge_index
+
+class Encoder(nn.Module):
+    def __init__(self, num_node_features, hidden_channels):
+        super().__init__()
+        self.conv1 = GCNConv(num_node_features, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, hidden_channels)
+        self.conv3 = GCNConv(hidden_channels, hidden_channels*2)
+        self.conv4 = GCNConv(hidden_channels*2, hidden_channels)
+        self.linear = nn.Linear(num_node_features, hidden_channels)
+
+    def forward(self, x, edge_index, batch):
+        # print(f"Input shape: {x.shape}")
+        identity = x
+        x = F.relu(self.conv1(x, edge_index))
+        # print(f"After conv1: {x.shape}")
+        x = F.relu(self.conv2(x, edge_index))
+        # print(f"After conv2: {x.shape}")
+        x = F.relu(self.conv3(x, edge_index))
+        # print(f"After conv3: {x.shape}")
+        x = self.conv4(x, edge_index)
+        # print(f"After conv4: {x.shape}")
+        identity = self.linear(identity)
+        # print(f"Adjusted identity shape: {identity.shape}")
+        x += identity
+        x = global_mean_pool(x, batch)
+        # print(f"Final embedding shape: {x.shape}")
+        return x
+
+class Decoder(nn.Module):
+    def __init__(self, hidden_channels, num_node_features):
+        super().__init__()
+        self.conv1 = GCNConv(hidden_channels, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, hidden_channels)
+        self.conv3 = GCNConv(hidden_channels, num_node_features)
+        
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        x = F.relu(x)
+        x = self.conv2(x, edge_index)
+        x = F.relu(x)
+        x = self.conv3(x, edge_index)
+        # x = F.leaky_relu(x, 0.5)
+        return x
+
+class GraphAutoEncoder(nn.Module):
+    def __init__(self, num_node_features, hidden_channels):
+        super().__init__()
+        self.encoder = Encoder(num_node_features, hidden_channels)
+        self.decoder = Decoder(hidden_channels, num_node_features)
+        self.attention = nn.MultiheadAttention(embed_dim=hidden_channels, num_heads=4)
+
+    def forward(self, x, edge_index, batch):
+        embedding = self.encoder(x, edge_index, batch)
+        # 注意力增强
+        embedding = embedding.unsqueeze(0)  # (1, batch_size, hidden)
+        attn_output, _ = self.attention(embedding, embedding, embedding)
+        embedding = attn_output.squeeze(0)  # (batch_size, hidden)
+        
+        decoded = self.decoder(embedding[batch], edge_index)
+        return embedding, decoded
+
+def train_graph_autoencoder(model, graphs, epochs=100, lr=5e-4, batch_size=4):
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    
+    # 创建Data对象列表并进行归一化
+    data_list = []
+    for graph in graphs:
+        num_nodes = graph.shape[0]
+        edge_index = generate_full_edges(num_nodes)
+        x = torch.tensor(graph, dtype=torch.float)
+        # 归一化处理
+        x_min, x_max = x.min(), x.max()
+        if (x_max - x_min) != 0:
+            x = (x - x_min) / (x_max - x_min)
+        else:
+            x = torch.zeros_like(x)
+        data = Data(x=x, edge_index=edge_index)
+        data_list.append(data)
+    
+    loader = DataLoader(data_list, batch_size=batch_size, shuffle=True)
+    
+    model.train()
+    for epoch in tqdm(range(epochs)):
+        print(torch.cuda.memory_summary())
+        total_loss = 0
+        for batch in loader:
+            batch = batch.to(device)
+            optimizer.zero_grad()
+            _, decoded = model(batch.x, batch.edge_index, batch.batch)
+            loss = F.mse_loss(decoded, batch.x)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item() * batch.num_graphs
+        avg_loss = total_loss / len(data_list)
+        print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
+    return model
+
+def generate_graph_embeddings(model, graphs):
+    model.eval()
+    embeddings = []
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    
+    for graph in graphs:
+        num_nodes = graph.shape[0]
+        edge_index = generate_full_edges(num_nodes).to(device)
+        x = torch.tensor(graph, dtype=torch.float).to(device)
+        # 创建batch参数（所有节点属于同一图）
+        batch = torch.zeros(num_nodes, dtype=torch.long).to(device)
+        with torch.no_grad():
+            embedding, _ = model(x, edge_index, batch)
+        embeddings.append(embedding.cpu().numpy())
+    return np.vstack(embeddings)

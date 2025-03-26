@@ -1,10 +1,3 @@
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# import pandas as pd
-# import matplotlib.pyplot as plt
-# import numpy as np
-
-
-# class Encoder(nn.Module):
-#     def __init__(self, num_node_features, hidden_layers):
+import torch
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+torch.randn((200, 300, 200, 20), device=device)
