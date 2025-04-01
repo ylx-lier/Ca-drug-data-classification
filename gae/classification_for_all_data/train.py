@@ -56,7 +56,7 @@ import seaborn as sns
 import datetime
 import pytz
 from pathlib import Path
-
+import logging
 
 def visualize_embeddings(embeddings, labels, label_encoder, save_path=None):
     tsne = TSNE(n_components=2)
@@ -82,6 +82,7 @@ def visualize_embeddings(embeddings, labels, label_encoder, save_path=None):
 def train_and_evaluate(paths):
     """Loads data, trains GAE and classifier, and evaluates them."""
     # Load graph data and labels
+    logging.info("loading data...")
     graphs, labels = load_graph_data(paths["data_path"])
     
     # Encode labels
@@ -97,7 +98,8 @@ def train_and_evaluate(paths):
     model = GraphAutoEncoder(num_node_features=input_dim, hidden_channels=64)
     
     # Train GAE on training graphs only
-    model = train_graph_autoencoder(model, train_graphs, epochs=100, lr=5e-4)
+    logging.info("Starting training...")
+    model = train_graph_autoencoder(model, train_graphs, epochs=10, lr=5e-4)
     
     # Generate embeddings for train and test sets
     train_embeddings = generate_graph_embeddings(model, train_graphs)
@@ -109,9 +111,9 @@ def train_and_evaluate(paths):
     
     # Evaluate
     metrics, y_pred = clf.evaluate(test_embeddings, y_test)
-    print(f"Accuracy: {metrics['accuracy']:.2f}")
-    print("Classification Report:\n", metrics['classification_report'])
-    print("Confusion Matrix:\n", metrics['confusion_matrix'])
+    logging.info(f"Accuracy: {metrics['accuracy']:.2f}")
+    logging.info("Classification Report:\n", metrics['classification_report'])
+    logging.info("Confusion Matrix:\n", metrics['confusion_matrix'])
     plt.figure(figsize=(10, 7))
     sns.heatmap(metrics['confusion_matrix'], annot=True, fmt='d', cmap='Blues')
     plt.xlabel('Predicted')

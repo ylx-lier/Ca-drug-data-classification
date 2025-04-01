@@ -309,8 +309,8 @@ class Encoder(nn.Module):
         super().__init__()
         self.conv1 = GCNConv(num_node_features, hidden_channels)
         self.conv2 = GCNConv(hidden_channels, hidden_channels)
-        self.conv3 = GCNConv(hidden_channels, hidden_channels*2)
-        self.conv4 = GCNConv(hidden_channels*2, hidden_channels)
+        # self.conv3 = GCNConv(hidden_channels, hidden_channels*2)
+        # self.conv4 = GCNConv(hidden_channels*2, hidden_channels)
         self.linear = nn.Linear(num_node_features, hidden_channels)
 
     def forward(self, x, edge_index, batch):
@@ -318,11 +318,11 @@ class Encoder(nn.Module):
         identity = x
         x = F.relu(self.conv1(x, edge_index))
         # print(f"After conv1: {x.shape}")
-        x = F.relu(self.conv2(x, edge_index))
-        # print(f"After conv2: {x.shape}")
-        x = F.relu(self.conv3(x, edge_index))
+        # x = F.relu(self.conv2(x, edge_index))
+        # # print(f"After conv2: {x.shape}")
+        # x = F.relu(self.conv3(x, edge_index))
         # print(f"After conv3: {x.shape}")
-        x = self.conv4(x, edge_index)
+        x = self.conv2(x, edge_index)
         # print(f"After conv4: {x.shape}")
         identity = self.linear(identity)
         # print(f"Adjusted identity shape: {identity.shape}")
@@ -335,15 +335,15 @@ class Decoder(nn.Module):
     def __init__(self, hidden_channels, num_node_features):
         super().__init__()
         self.conv1 = GCNConv(hidden_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, hidden_channels)
-        self.conv3 = GCNConv(hidden_channels, num_node_features)
+        self.conv2 = GCNConv(hidden_channels, num_node_features)
+      
         
     def forward(self, x, edge_index):
         x = self.conv1(x, edge_index)
         x = F.relu(x)
         x = self.conv2(x, edge_index)
-        x = F.relu(x)
-        x = self.conv3(x, edge_index)
+        # x = F.relu(x)
+        # x = self.conv3(x, edge_index)
         # x = F.leaky_relu(x, 0.5)
         return x
 

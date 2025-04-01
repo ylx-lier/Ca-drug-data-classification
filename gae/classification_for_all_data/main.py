@@ -14,11 +14,22 @@ import os
 from pathlib import Path
 from datetime import datetime
 import pytz
-
-def get_datasets(base_path):
-    """获取数据集目录下的所有子文件夹名称"""
-    return [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
-
+import logging
+# def get_datasets(base_path):
+#     """获取数据集目录下的所有子文件夹名称"""
+#     return [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
+def setup_logging(result_dir):
+    """配置日志系统"""
+    log_file = result_dir / "training.log"
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),  # 保存到文件
+            logging.StreamHandler()        # 同时输出到控制台
+        ]
+    )
 if __name__ == "__main__":
     # 基础路径（包含所有数据集的目录）
     base_data_path = "../../data/calcium_data_all/"  # 所有数据集在此目录下
@@ -42,7 +53,7 @@ if __name__ == "__main__":
         dataset_name = dataset.replace("/", "-")
         result_dir = Path(f"./results/{dataset_name}-{timestamp}")
         result_dir.mkdir(parents=True, exist_ok=True)
-        
+        setup_logging(result_dir)
         # 动态模型保存路径（每个数据集单独保存）
         # model_save_path = result_dir / "xgboost_model.json"
         paths = {
@@ -53,10 +64,12 @@ if __name__ == "__main__":
             # 注意：不包含model_save_path
         }
 
-        print(f"🔍 正在处理数据集: {dataset}")
-    
+        logging.info(f"🔍 正在处理数据集: {dataset}")
+        try:
         
-        # 调用原有训练函数
-        train_and_evaluate(paths)
-        
-        print(f"✅ 完成处理: {dataset}\n")
+            # 调用原有训练函数
+            train_and_evaluate(paths)
+            
+            logging.info(f"✅ 完成处理: {dataset}\n")
+        except Exception as e:
+            logging.error(f"训练失败: {str(e)}", exc_info=True)
