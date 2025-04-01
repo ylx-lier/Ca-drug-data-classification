@@ -99,7 +99,7 @@ def train_and_evaluate(paths):
     
     # Train GAE on training graphs only
     logging.info("Starting training...")
-    model = train_graph_autoencoder(model, train_graphs, epochs=10, lr=5e-4)
+    model = train_graph_autoencoder(model, train_graphs, paths, epochs=10, lr=5e-4)
     
     # Generate embeddings for train and test sets
     train_embeddings = generate_graph_embeddings(model, train_graphs)
@@ -111,9 +111,10 @@ def train_and_evaluate(paths):
     
     # Evaluate
     metrics, y_pred = clf.evaluate(test_embeddings, y_test)
-    logging.info(f"Accuracy: {metrics['accuracy']:.2f}")
-    logging.info("Classification Report:\n", metrics['classification_report'])
-    logging.info("Confusion Matrix:\n", metrics['confusion_matrix'])
+    logging.info(f"\n=== 评估结果 ===\n"
+            f"Accuracy: {metrics['accuracy']:.2f}\n"
+            f"Classification Report:\n{metrics['classification_report']}\n"
+            f"Confusion Matrix:\n{metrics['confusion_matrix']}")
     plt.figure(figsize=(10, 7))
     sns.heatmap(metrics['confusion_matrix'], annot=True, fmt='d', cmap='Blues')
     plt.xlabel('Predicted')
@@ -122,4 +123,16 @@ def train_and_evaluate(paths):
     plt.show()
     plt.savefig(paths["confusion_matrix_path"])
     # clf.save_model(model_save_path)
-    return label_encoder, y_pred
+    return {
+        "accuracy": metrics["accuracy"],
+        "precision": metrics["precision"],
+        "recall": metrics["recall"],
+        "f1": metrics["f1"],
+        "confusion_matrix": metrics["confusion_matrix"].tolist(),  # numpy数组转list
+        "label_mapping": dict(zip(
+            label_encoder.classes_, 
+            range(len(label_encoder.classes_))
+        )),  # 保存标签映射关系
+        "y_true": y_test.tolist(),  # 实际标签
+        "y_pred": y_pred.tolist()   # 预测标签
+    }

@@ -298,6 +298,7 @@ from itertools import combinations
 import numpy as np
 from tqdm import tqdm
 from torch_geometric.data import Data, DataLoader
+import matplotlib.pyplot as plt
 
 def generate_full_edges(num_nodes):
     edges = list(combinations(range(num_nodes), 2))
@@ -364,7 +365,7 @@ class GraphAutoEncoder(nn.Module):
         decoded = self.decoder(embedding[batch], edge_index)
         return embedding, decoded
 
-def train_graph_autoencoder(model, graphs, epochs=100, lr=5e-4, batch_size=4):
+def train_graph_autoencoder(model, graphs, paths, epochs=100, lr=5e-4, batch_size=4):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -387,6 +388,7 @@ def train_graph_autoencoder(model, graphs, epochs=100, lr=5e-4, batch_size=4):
     loader = DataLoader(data_list, batch_size=batch_size, shuffle=True)
     
     model.train()
+    loss_values = []
     for epoch in tqdm(range(epochs)):
         total_loss = 0
         for batch in loader:
@@ -398,7 +400,14 @@ def train_graph_autoencoder(model, graphs, epochs=100, lr=5e-4, batch_size=4):
             optimizer.step()
             total_loss += loss.item() * batch.num_graphs
         avg_loss = total_loss / len(data_list)
+        loss_values.append(avg_loss)
         print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
+    plt.figure(figsize=(10,5))
+    plt.plot(loss_values, label='training Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig(paths["loss_path"])   
     return model
 
 def generate_graph_embeddings(model, graphs):
