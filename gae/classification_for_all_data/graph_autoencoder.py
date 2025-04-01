@@ -388,7 +388,6 @@ def train_graph_autoencoder(model, graphs, epochs=100, lr=5e-4, batch_size=4):
     
     model.train()
     for epoch in tqdm(range(epochs)):
-        print(torch.cuda.memory_summary())
         total_loss = 0
         for batch in loader:
             batch = batch.to(device)

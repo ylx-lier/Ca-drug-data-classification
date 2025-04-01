@@ -55,9 +55,8 @@ from sklearn.manifold import TSNE
 import seaborn as sns
 import datetime
 import pytz
+from pathlib import Path
 
-china_timezone = pytz.timezone('Asia/Shanghai')
-now = datetime.datetime.now(china_timezone).strftime("%Y-%m-%d_%H-%M-%S")
 
 def visualize_embeddings(embeddings, labels, label_encoder, save_path=None):
     tsne = TSNE(n_components=2)
@@ -80,10 +79,10 @@ def visualize_embeddings(embeddings, labels, label_encoder, save_path=None):
         plt.show()
     plt.close()
 
-def train_and_evaluate(folder_path, model_save_path):
+def train_and_evaluate(paths):
     """Loads data, trains GAE and classifier, and evaluates them."""
     # Load graph data and labels
-    graphs, labels = load_graph_data(folder_path)
+    graphs, labels = load_graph_data(paths["data_path"])
     
     # Encode labels
     y_encoded, label_encoder = encode_labels(labels)
@@ -103,7 +102,7 @@ def train_and_evaluate(folder_path, model_save_path):
     # Generate embeddings for train and test sets
     train_embeddings = generate_graph_embeddings(model, train_graphs)
     test_embeddings = generate_graph_embeddings(model, test_graphs)
-    visualize_embeddings(train_embeddings, y_train, label_encoder, save_path=f"/home/featurize/work/ylx/MEA/gae/embedding_plot_{now}.png")
+    visualize_embeddings(train_embeddings, y_train, label_encoder, save_path=paths["embedding_plot_path"])
     # Train classifier
     clf = Classifier()
     clf.train(train_embeddings, y_train)
@@ -119,6 +118,6 @@ def train_and_evaluate(folder_path, model_save_path):
     plt.ylabel('True')
     plt.title('Confusion Matrix')
     plt.show()
-    plt.savefig(f"/home/featurize/work/ylx/MEA/gae/confusion_matrix_{now}.png")
-    clf.save_model(model_save_path)
+    plt.savefig(paths["confusion_matrix_path"])
+    # clf.save_model(model_save_path)
     return label_encoder, y_pred
