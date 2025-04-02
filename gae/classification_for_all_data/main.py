@@ -1,80 +1,3 @@
-# # # main.py
-# # from train import train_and_evaluate
-# # import datetime 
-# # if __name__ == "__main__":
-# #     # Define paths
-# #     folder_path = "./data/calcium_data_all/GABA_all/day45_GABA"  # Replace with your folder
-# #     model_save_path = "/home/featurize/work/ylx/MEA/gae/xgboost_model.json"
-
-# #     # Train and evaluate the model
-# #     train_and_evaluate(folder_path, model_save_path)
-
-# from train import train_and_evaluate
-# import os
-# from pathlib import Path
-# from datetime import datetime
-# import pytz
-# import logging
-# # def get_datasets(base_path):
-# #     """获取数据集目录下的所有子文件夹名称"""
-# #     return [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
-# def setup_logging(result_dir):
-#     """配置日志系统"""
-#     log_file = result_dir / "training.log"
-    
-#     logging.basicConfig(
-#         level=logging.INFO,
-#         format='%(asctime)s [%(levelname)s] %(message)s',
-#         handlers=[
-#             logging.FileHandler(log_file),  # 保存到文件
-#             logging.StreamHandler()        # 同时输出到控制台
-#         ]
-#     )
-# if __name__ == "__main__":
-#     # 基础路径（包含所有数据集的目录）
-#     base_data_path = "../../data/calcium_data_all/"  # 所有数据集在此目录下
-#     china_timezone = pytz.timezone("Asia/Shanghai")
-#     # 获取所有数据集名称（自动扫描子目录）
-#     # datasets = get_datasets(base_data_path)
-#     # 或者手动指定数据集列表：
-#     datasets = ["cnqx_apv", "GABA", "glu", "sac", "sr", 
-#                 "cnqx_apv_all/day90_cnqx_apv", "cnqx_apv_all/day120_cnqx_apv",
-#                 "GABA_all/day45_GABA", "GABA_all/day90_GABA", "GABA_all/day120_GABA", 
-#                 "glu_all/day45_glu", "glu_all/day90_glu", "glu_all/day120_glu",
-#                 "sac_all/day90_sac", "sac_all/day120_sac",
-#                 "sr_all/day90_sr", "sr_all/day120_sr"]  
-
-#     for dataset in datasets:
-#         # 动态生成路径
-#         folder_path = os.path.join(base_data_path, dataset)
-        
-#         # 创建带时间戳的结果目录（格式：数据集名称-年月日_时分秒）
-#         timestamp = datetime.now(china_timezone).strftime("%Y-%m-%d_%H-%M-%S")
-#         dataset_name = dataset.replace("/", "-")
-#         result_dir = Path(f"./results/{dataset_name}-{timestamp}")
-#         result_dir.mkdir(parents=True, exist_ok=True)
-#         setup_logging(result_dir)
-#         # 动态模型保存路径（每个数据集单独保存）
-#         # model_save_path = result_dir / "xgboost_model.json"
-#         paths = {
-#             "data_path": folder_path,
-#             "result_dir": result_dir,  # 整个结果目录
-#             "embedding_plot_path": result_dir / "embedding_plot.png",
-#             "confusion_matrix_path": result_dir / "confusion_matrix.png"
-#             # 注意：不包含model_save_path
-#         }
-
-#         logging.info(f"🔍 正在处理数据集: {dataset}")
-#         try:
-        
-#             # 调用原有训练函数
-#             train_and_evaluate(paths)
-            
-#             logging.info(f"✅ 完成处理: {dataset}\n")
-#         except Exception as e:
-#             logging.error(f"训练失败: {str(e)}", exc_info=True)
-
-
 from train import train_and_evaluate
 import os
 from pathlib import Path
@@ -82,8 +5,32 @@ from datetime import datetime
 import pytz
 import logging
 import json
+from tqdm import tqdm
+from logging import StreamHandler
 
 china_timezone = pytz.timezone("Asia/Shanghai")
+
+class ChinaTimeFormatter(logging.Formatter):
+    """自定义Formatter，使用中国时区"""
+    converter = lambda *args: datetime.now(china_timezone).timetuple()
+
+    def formatTime(self, record, datefmt=None):
+        ct = datetime.fromtimestamp(record.created, china_timezone)
+        if datefmt:
+            return ct.strftime(datefmt)
+        else:
+            return ct.strftime("%Y-%m-%d %H:%M:%S")
+
+class TqdmLoggingHandler(StreamHandler):
+    """特殊的logging handler用于与tqdm兼容"""
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(msg)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
 def setup_experiment_logging(exp_dir):
     """配置实验级别的日志系统（整个exp共用一个log文件）"""
     log_file = exp_dir / "experiment.log"
@@ -91,15 +38,24 @@ def setup_experiment_logging(exp_dir):
     # 清除之前的配置
     logging.root.handlers = []
     
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s [%(levelname)s] %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ],
-        force=True
-    )
+    # 创建logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # 创建中国时区的formatter
+    formatter = ChinaTimeFormatter('%(asctime)s [%(levelname)s] %(message)s')
+    
+    # 文件handler
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
+    
+    # 控制台handler (tqdm兼容)
+    console_handler = TqdmLoggingHandler()
+    console_handler.setFormatter(formatter)
+    
+    # 添加handler
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
 
 def create_experiment_dir(base_dir="../../results"):
     """创建实验目录（exp1, exp2,...）"""
@@ -124,7 +80,6 @@ if __name__ == "__main__":
     
     # 2. 数据集配置
     base_data_path = Path("../../data/calcium_data_all/")
-    china_timezone = pytz.timezone("Asia/Shanghai")
     
     datasets = [
         "cnqx_apv", "GABA", "glu", "sac", "sr",
@@ -135,8 +90,8 @@ if __name__ == "__main__":
         "sr_all/day90_sr", "sr_all/day120_sr"
     ]
 
-    # 3. 处理每个数据集
-    for dataset in datasets:
+    # 3. 使用tqdm包装数据集循环
+    for dataset in tqdm(datasets, desc="处理数据集中"):
         dataset_name = dataset.replace("/", "-")
         dataset_dir = exp_dir / dataset_name
         dataset_dir.mkdir()
