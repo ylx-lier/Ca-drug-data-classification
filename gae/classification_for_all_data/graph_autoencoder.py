@@ -402,7 +402,7 @@ def train_graph_autoencoder(model, graphs, paths, epochs=100, lr=5e-4, batch_siz
             total_loss += loss.item() * batch.num_graphs
         avg_loss = total_loss / len(data_list)
         loss_values.append(avg_loss)
-        print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
+        logging.info(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
     plt.figure(figsize=(10,5))
     plt.plot(loss_values, label='training Loss')
     plt.xlabel('Epoch')
