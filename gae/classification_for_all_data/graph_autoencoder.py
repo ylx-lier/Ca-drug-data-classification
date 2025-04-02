@@ -299,6 +299,7 @@ import numpy as np
 from tqdm import tqdm
 from torch_geometric.data import Data, DataLoader
 import matplotlib.pyplot as plt
+import logging
 
 def generate_full_edges(num_nodes):
     edges = list(combinations(range(num_nodes), 2))

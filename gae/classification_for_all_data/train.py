@@ -99,7 +99,7 @@ def train_and_evaluate(paths):
     
     # Train GAE on training graphs only
     logging.info("Starting training...")
-    model = train_graph_autoencoder(model, train_graphs, paths, epochs=10, lr=5e-4)
+    model = train_graph_autoencoder(model, train_graphs, paths, epochs=50, lr=1e-3)
     
     # Generate embeddings for train and test sets
     train_embeddings = generate_graph_embeddings(model, train_graphs)
