@@ -65,8 +65,8 @@ def create_experiment_dir(base_dir="../../results"):
     # 查找已存在的实验目录
     existing_exps = [d for d in base_path.iterdir() if d.is_dir() and d.name.startswith("exp")]
     next_num = len(existing_exps) + 1
-    
-    exp_dir = base_path / f"exp{next_num}"
+    name_exp = "downsampling_to_1000"
+    exp_dir = base_path / f"exp{name_exp}"
     exp_dir.mkdir()
     return exp_dir
 

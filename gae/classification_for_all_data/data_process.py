@@ -19,7 +19,7 @@ def load_graph_data(folder_path):
             filepath = os.path.join(folder_path, file)
             matrix = np.loadtxt(filepath, delimiter=',')
             label = extract_label(file)
-            matrix = linear_interpolate(matrix, 4570)
+            matrix = linear_interpolate(matrix, target_dim=1000)
             graphs.append(matrix)
             labels.append(label)
     logging.info(f"Total samples loaded: {len(graphs)}")
@@ -29,5 +29,8 @@ def load_graph_data(folder_path):
 
 def encode_labels(labels):
     """Encodes string labels into numeric labels."""
+    grouped_labels = np.array(["baseline" if label == "baseline" else "non_baseline" for label in labels])
     label_encoder = LabelEncoder()
-    return label_encoder.fit_transform(labels), label_encoder
+    encode_labels = label_encoder.fit_transform(grouped_labels)
+    logging.info(f"Encoded labels mapping: {dict(zip(label_encoder.classes_, range(len(label_encoder.classes_))))}")
+    return encode_labels, label_encoder
