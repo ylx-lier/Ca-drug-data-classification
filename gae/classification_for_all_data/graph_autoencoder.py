@@ -75,30 +75,16 @@ class GraphAutoEncoder(nn.Module):
         decoded = self.decoder(embedding[batch], edge_index)
         return embedding, decoded
 
-def train_graph_autoencoder(model, graphs, paths, epochs=100, lr=5e-4, batch_size=4):
+def train_graph_autoencoder(model, graph_data_list, paths, epochs=100, lr=5e-4, batch_size=4):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     
-    # 创建Data对象列表并进行归一化
-    data_list = []
-    for graph in graphs:
-        num_nodes = graph.shape[0]
-        edge_index = generate_full_edges(num_nodes)
-        x = torch.tensor(graph, dtype=torch.float)
-        # 归一化处理
-        x_min, x_max = x.min(), x.max()
-        if (x_max - x_min) != 0:
-            x = (x - x_min) / (x_max - x_min)
-        else:
-            x = torch.zeros_like(x)
-        data = Data(x=x, edge_index=edge_index)
-        data_list.append(data)
-    
-    loader = DataLoader(data_list, batch_size=batch_size, shuffle=True)
+    loader = DataLoader(graph_data_list, batch_size=batch_size, shuffle=True)
     
     model.train()
     loss_values = []
+    logging.info("Start training...")
     for epoch in tqdm(range(epochs)):
         total_loss = 0
         for batch in loader:
@@ -109,15 +95,16 @@ def train_graph_autoencoder(model, graphs, paths, epochs=100, lr=5e-4, batch_siz
             loss.backward()
             optimizer.step()
             total_loss += loss.item() * batch.num_graphs
-        avg_loss = total_loss / len(data_list)
+        avg_loss = total_loss / len(graph_data_list)
         loss_values.append(avg_loss)
         logging.info(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
+    
+    # 保存训练曲线
     plt.figure(figsize=(10,5))
-    plt.plot(loss_values, label='training Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.savefig(paths["loss_path"])   
+    plt.plot(loss_values)
+    plt.savefig(paths["loss_path"])
+    plt.close()
+    
     return model
 
 def generate_graph_embeddings(model, graphs):
@@ -127,9 +114,9 @@ def generate_graph_embeddings(model, graphs):
     model.to(device)
     
     for graph in graphs:
-        num_nodes = graph.shape[0]
+        num_nodes = graph.x.shape[0]
         edge_index = generate_full_edges(num_nodes).to(device)
-        x = torch.tensor(graph, dtype=torch.float).to(device)
+        x = torch.tensor(graph.x, dtype=torch.float).to(device)
         # 创建batch参数（所有节点属于同一图）
         batch = torch.zeros(num_nodes, dtype=torch.long).to(device)
         with torch.no_grad():

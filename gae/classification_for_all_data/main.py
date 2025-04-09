@@ -65,71 +65,34 @@ def create_experiment_dir(base_dir="../../results"):
     # 查找已存在的实验目录
     existing_exps = [d for d in base_path.iterdir() if d.is_dir() and d.name.startswith("exp")]
     next_num = len(existing_exps) + 1
-    name_exp = "downsampling_to_1000"
-    exp_dir = base_path / f"exp{name_exp}"
+    name_exp = "all_data"
+    exp_dir = base_path / f"exp{next_num}"
     exp_dir.mkdir()
     return exp_dir
 
 if __name__ == "__main__":
-    # 1. 创建实验目录
+    # 创建实验目录
     exp_dir = create_experiment_dir()
     setup_experiment_logging(exp_dir)
     
-    logging.info(f"🎯 开始新实验：{exp_dir.name}")
-    logging.info(f"⏰ 实验开始时间：{datetime.now(china_timezone).strftime('%Y-%m-%d %H:%M:%S')}")
+    logging.info("开始联合训练实验...")
     
-    # 2. 数据集配置
-    base_data_path = Path("../../data/calcium_data_all/")
+    # 定义路径
+    paths = {
+        "result_dir": exp_dir,
+        "embedding_plot_path": exp_dir / "figures/embeddings.png",
+        "confusion_matrix_path": exp_dir / "figures/confusion_matrix.png",
+        "model_save_path": exp_dir / "models/xgboost_model.json",
+        "loss_path": exp_dir / "figures/loss_curve.png"
+    }
+    for path in paths.values():
+        dir_path = path.parent  # 取到目录名，比如 exp_dir/figures
+        dir_path.mkdir(parents=True, exist_ok=True)  # 如果不存在就创建，多层也没关系
+    # 执行联合训练和评估
+    results = train_and_evaluate(paths)
     
-    datasets = [
-        "cnqx_apv", "GABA", "glu", "sac", "sr",
-        "cnqx_apv_all/day90_cnqx_apv", "cnqx_apv_all/day120_cnqx_apv",
-        "GABA_all/day45_GABA", "GABA_all/day90_GABA", "GABA_all/day120_GABA",
-        "glu_all/day45_glu", "glu_all/day90_glu", "glu_all/day120_glu",
-        "sac_all/day90_sac", "sac_all/day120_sac",
-        "sr_all/day90_sr", "sr_all/day120_sr"
-    ]
-
-    # 3. 使用tqdm包装数据集循环
-    for dataset in tqdm(datasets, desc="处理数据集中"):
-        dataset_name = dataset.replace("/", "-")
-        dataset_dir = exp_dir / dataset_name
-        dataset_dir.mkdir()
-        
-        # 创建子目录结构
-        (dataset_dir / "embeddings").mkdir()
-        (dataset_dir / "models").mkdir()
-        (dataset_dir / "figures").mkdir()
-        
-        paths = {
-            "data_path": base_data_path / dataset,
-            "result_dir": dataset_dir,
-            "embedding_plot_path": dataset_dir / "figures/embeddings.png",
-            "confusion_matrix_path": dataset_dir / "figures/confusion_matrix.png",
-            "model_save_path": dataset_dir / "models/xgboost_model.json",
-            "loss_path": dataset_dir / "figures/loss_curve.png"
-        }
-
-        logging.info(f"\n🔍 开始处理数据集: {dataset}")
-        logging.info(f"📁 数据路径: {paths['data_path']}")
-        
-        try:
-            # 4. 训练和评估
-            metrics = train_and_evaluate(paths)
-            
-            # 保存指标
-            with open(dataset_dir / "metrics.json", "w") as f:
-                json.dump(metrics, f, indent=2)
-                
-            logging.info(f"✅ 完成 {dataset} | 准确率: {metrics['accuracy']:.2f}")
-            
-        except Exception as e:
-            logging.error(f"❌ {dataset} 处理失败: {str(e)}", exc_info=True)
-            # 记录失败状态
-            with open(dataset_dir / "FAILED", "w") as f:
-                f.write(str(e))
+    # 保存所有结果
+    with open(exp_dir / "all_results.json", "w") as f:
+        json.dump(results, f, indent=2)
     
-    # 5. 实验总结
-    success_count = sum(1 for d in exp_dir.iterdir() if d.is_dir() and not (d / "FAILED").exists())
-    logging.info(f"\n🎉 实验完成 {success_count}/{len(datasets)} 个数据集成功")
-    logging.info(f"📂 实验结果目录: {exp_dir.absolute()}")
+    logging.info("实验完成！")

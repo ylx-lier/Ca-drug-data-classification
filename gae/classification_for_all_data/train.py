@@ -1,51 +1,7 @@
-'''
+
 # train.py
 from sklearn.model_selection import train_test_split
-from data_process import load_graph_data, encode_labels
-from graph_autoencoder import GraphAutoEncoder, train_graph_autoencoder, generate_graph_embeddings
-from classification import Classifier
-import torch
-
-def train_and_evaluate(folder_path, model_save_path):
-    """Loads data, trains GAE and classifier, and evaluates them."""
-    # Load graph data and labels
-    graphs, labels = load_graph_data(folder_path)
-    for i in range(len(graphs)):
-        print(graphs[i].shape)
-
-    # Encode labels
-    y_encoded, label_encoder = encode_labels(labels)
-
-    # Initialize GAE
-    input_dim = len(graphs[0][1])  # Node feature dimension
-    print("input_dim: ", input_dim)
-    model = GraphAutoEncoder(num_node_features=input_dim, hidden_channels=64)
-
-    # Train GAE
-    model = train_graph_autoencoder(model, graphs, epochs=100, lr=0.01)
-
-    # Generate graph embeddings
-    embeddings = generate_graph_embeddings(model, graphs)
-
-    # Split data
-    X_train, X_test, y_train, y_test = train_test_split(embeddings, y_encoded, test_size=0.2, random_state=42)
-
-    # Initialize and train the classifier
-    clf = Classifier()
-    clf.train(X_train, y_train)
-
-    # Evaluate the classifier
-    accuracy, y_pred = clf.evaluate(X_test, y_test)
-    print(f"Accuracy: {accuracy:.2f}")
-
-    # Save the trained model
-    clf.save_model(model_save_path)
-
-    return label_encoder, y_pred
-'''
-# train.py
-from sklearn.model_selection import train_test_split
-from data_process import load_graph_data, encode_labels
+from data_process import load_and_normalize_datasets
 from graph_autoencoder import GraphAutoEncoder, train_graph_autoencoder, generate_graph_embeddings
 from classification import Classifier
 import torch
@@ -80,59 +36,57 @@ def visualize_embeddings(embeddings, labels, label_encoder, save_path=None):
     plt.close()
 
 def train_and_evaluate(paths):
-    """Loads data, trains GAE and classifier, and evaluates them."""
-    # Load graph data and labels
-    logging.info("loading data...")
-    graphs, labels = load_graph_data(paths["data_path"])
+    # 1. 加载并归一化所有数据集
+    logging.info("Loading and normalizing datasets...")
+    all_csv_paths = list(Path("../../data/calcium_data_all/").rglob("*.csv"))
+    grouped_data = load_and_normalize_datasets(all_csv_paths)
     
-    # Encode labels
-    y_encoded, label_encoder = encode_labels(labels)
-    
-    # Split data into train and test sets first to avoid data leakage
-    train_graphs, test_graphs, y_train, y_test = train_test_split(
-        graphs, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
-    )
-    
-    # Initialize GAE with input dimension from training data
-    input_dim = train_graphs[0].shape[1]  # num_node_features
+    # 2. 准备联合训练数据
+    logging.info("Preparing data for joint training...")
+    all_graphs = []
+    for dataset in grouped_data.values():
+        all_graphs.extend(dataset['graphs'])
+    logging.info(f"Total graphs for joint training: {len(all_graphs)}")
+
+
+    # 3. 训练GAE模型（在所有数据上）
+    logging.info("Training Graph Autoencoder with all data...")
+    input_dim = all_graphs[0].num_node_features
     model = GraphAutoEncoder(num_node_features=input_dim, hidden_channels=64)
+    model = train_graph_autoencoder(model, all_graphs, paths, epochs=50, lr=1e-3)
     
-    # Train GAE on training graphs only
-    logging.info("Starting training...")
-    model = train_graph_autoencoder(model, train_graphs, paths, epochs=50, lr=1e-3)
+    # 4. 对每个数据集单独处理
+    results = {}
+    for dataset_name, dataset_info in grouped_data.items():
+        logging.info(f"\nProcessing dataset embeddings: {dataset_name}")
+        
+        # 生成该数据集的embeddings
+        embeddings = generate_graph_embeddings(model, dataset_info['graphs'])
+        labels = dataset_info['labels']
+        label_encoder = dataset_info['label_encoder']
+        
+        # 分割训练测试集
+        X_train, X_test, y_train, y_test = train_test_split(
+            embeddings, labels, test_size=0.8, random_state=42, stratify=labels
+        )
+        
+        # 训练和评估分类器
+        clf = Classifier()
+        clf.train(X_train, y_train)
+        metrics, y_pred = clf.evaluate(X_test, y_test)
+        
+        # 保存结果
+        results[dataset_name] = {
+            "accuracy": metrics["accuracy"],
+            "classification_report": metrics["classification_report"],
+            "confusion_matrix": metrics["confusion_matrix"].tolist(),
+            "label_mapping": dict(zip(label_encoder.classes_, range(len(label_encoder.classes_))))
+        }
+        
+        # 可视化
+        visualize_embeddings(
+            embeddings, labels, label_encoder,
+            save_path=paths['result_dir']/f"{dataset_name}_embeddings.png"
+        )
     
-    # Generate embeddings for train and test sets
-    train_embeddings = generate_graph_embeddings(model, train_graphs)
-    test_embeddings = generate_graph_embeddings(model, test_graphs)
-    visualize_embeddings(train_embeddings, y_train, label_encoder, save_path=paths["embedding_plot_path"])
-    # Train classifier
-    clf = Classifier()
-    clf.train(train_embeddings, y_train)
-    
-    # Evaluate
-    metrics, y_pred = clf.evaluate(test_embeddings, y_test)
-    logging.info(f"\n=== 评估结果 ===\n"
-            f"Accuracy: {metrics['accuracy']:.2f}\n"
-            f"Classification Report:\n{metrics['classification_report']}\n"
-            f"Confusion Matrix:\n{metrics['confusion_matrix']}")
-    plt.figure(figsize=(10, 7))
-    sns.heatmap(metrics['confusion_matrix'], annot=True, fmt='d', cmap='Blues')
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
-    plt.show()
-    plt.savefig(paths["confusion_matrix_path"])
-    # clf.save_model(model_save_path)
-    return {
-        "accuracy": metrics["accuracy"],
-        "precision": metrics["precision"],
-        "recall": metrics["recall"],
-        "f1": metrics["f1"],
-        "confusion_matrix": metrics["confusion_matrix"].tolist(),  # numpy数组转list
-        "label_mapping": dict(zip(
-            label_encoder.classes_, 
-            range(len(label_encoder.classes_))
-        )),  # 保存标签映射关系
-        "y_true": y_test.tolist(),  # 实际标签
-        "y_pred": y_pred.tolist()   # 预测标签
-    }
+    return results
