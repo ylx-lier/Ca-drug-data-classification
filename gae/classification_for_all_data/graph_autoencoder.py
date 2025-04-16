@@ -9,6 +9,7 @@ from tqdm import tqdm
 from torch_geometric.data import Data, DataLoader
 import matplotlib.pyplot as plt
 import logging
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 def generate_full_edges(num_nodes):
     edges = list(combinations(range(num_nodes), 2))
@@ -63,19 +64,29 @@ class GraphAutoEncoder(nn.Module):
         super().__init__()
         self.encoder = Encoder(num_node_features, hidden_channels)
         self.decoder = Decoder(hidden_channels, num_node_features)
-        self.attention = nn.MultiheadAttention(embed_dim=hidden_channels, num_heads=4)
+        
+        self.pos_embedding = nn.Parameter(torch.randn(1,1,hidden_channels))
+        encoder_layers = TransformerEncoderLayer(
+            d_model=hidden_channels,
+            nhead=4,
+            dim_feedforward=hidden_channels * 2,
+            dropout=0.1,
+            batch_first=True
+        )
+        self.transformer = TransformerEncoder(encoder_layers, num_layers=1)
 
     def forward(self, x, edge_index, batch):
         embedding = self.encoder(x, edge_index, batch)
         # 注意力增强
-        embedding = embedding.unsqueeze(0)  # (1, batch_size, hidden)
-        attn_output, _ = self.attention(embedding, embedding, embedding)
-        embedding = attn_output.squeeze(0)  # (batch_size, hidden)
+        embedding = embedding.unsqueeze(1)  # (1, batch_size, hidden)
+        embedding = embedding + self.pos_embedding
+        embedding = self.transformer(embedding)
+        embedding = embedding.squeeze(1)  # (batch_size, hidden)
         
         decoded = self.decoder(embedding[batch], edge_index)
         return embedding, decoded
 
-def train_graph_autoencoder(model, graph_data_list, paths, epochs=100, lr=5e-4, batch_size=4):
+def train_graph_autoencoder(model, graph_data_list, paths, epochs=100, lr=5e-4, batch_size=32):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -94,8 +105,10 @@ def train_graph_autoencoder(model, graph_data_list, paths, epochs=100, lr=5e-4, 
             loss = F.mse_loss(decoded, batch.x)
             loss.backward()
             optimizer.step()
+            logging.info(f"loss: {loss.item()}, len(batch): {batch.num_graphs}")
             total_loss += loss.item() * batch.num_graphs
         avg_loss = total_loss / len(graph_data_list)
+        logging.info(f"total loss: {total_loss:.4f}, len(graph_data_list): {len(graph_data_list)}")
         loss_values.append(avg_loss)
         logging.info(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
     

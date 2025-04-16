@@ -61,18 +61,20 @@ def train_and_evaluate(paths):
         logging.info(f"\nProcessing dataset embeddings: {dataset_name}")
         
         # 生成该数据集的embeddings
+        logging.info("Generating embeddings...")
         embeddings = generate_graph_embeddings(model, dataset_info['graphs'])
         labels = dataset_info['labels']
         label_encoder = dataset_info['label_encoder']
         
         # 分割训练测试集
         X_train, X_test, y_train, y_test = train_test_split(
-            embeddings, labels, test_size=0.8, random_state=42, stratify=labels
+            embeddings, labels, test_size=0.2, random_state=42, stratify=labels
         )
         
         # 训练和评估分类器
+        logging.info("Training classifier...")
         clf = Classifier()
-        clf.train(X_train, y_train)
+        clf.train(X_train, y_train, use_balanced_weights=False)
         metrics, y_pred = clf.evaluate(X_test, y_test)
         
         # 保存结果

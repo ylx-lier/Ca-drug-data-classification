@@ -6,6 +6,7 @@ from torch_geometric.data import Data
 import torch
 from itertools import combinations
 import logging
+from tqdm import tqdm
 
 def random_downsample(features):
     """
@@ -47,7 +48,7 @@ def load_and_normalize_datasets(data_paths, normalize=True):
     all_features = []
     temp_data = {}
 
-    for path in data_paths:
+    for path in tqdm(data_paths, desc="收集特征归一化"):
         
         dataset_name = str(path.parent.name)
         filename = path.stem  # 获取不带扩展名的文件名
@@ -56,7 +57,7 @@ def load_and_normalize_datasets(data_paths, normalize=True):
         label = extract_label(filename)  # 使用你提供的extract_label函数
         
         # 加载数据
-        matrix = np.loadtxt(path, delimiter=',')
+        matrix = pd.read_csv(path, header=None).values
         matrix = linear_interpolate(matrix, target_dim=4570)  # 使用你提供的插值函数
         
         if dataset_name not in temp_data:
@@ -69,7 +70,7 @@ def load_and_normalize_datasets(data_paths, normalize=True):
     # 计算归一化参数
     if normalize and len(all_features) > 0:
         scaler = MinMaxScaler()
-        scaler.fit(np.vstack([f.reshape(-1, all_features[0].shape[1]) for f in all_features]))
+        scaler.fit(np.vstack([f.reshape(-1, all_features[0].shape[1]) for f in tqdm(all_features)]))
 
     
     # 第二阶段：应用归一化并创建图数据

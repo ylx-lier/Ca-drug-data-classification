@@ -10,7 +10,7 @@ from sklearn.metrics import (
     classification_report
 )
 from sklearn.model_selection import GridSearchCV
-
+from sklearn.utils import compute_sample_weight
 class Classifier:
     def __init__(self):
         self.model = xgb.XGBClassifier(
@@ -19,7 +19,7 @@ class Classifier:
             learning_rate=0.1  # 默认值
             )
 
-    def train(self, X_train, y_train):
+    def train(self, X_train, y_train, use_balanced_weights=True):
         """Trains the XGBoost model."""
         
         # param_grid = {
@@ -40,7 +40,13 @@ class Classifier:
         # self.model = grid_search.best_estimator_
         # print(f"Best params: {grid_search.best_params_}")
         #关闭了超参搜索
-        self.model.fit(X_train, y_train)
+        """Trains the XGBoost model with balanced sample weights."""
+        if use_balanced_weights:
+            from sklearn.utils.class_weight import compute_sample_weight
+            sample_weights = compute_sample_weight(class_weight='balanced', y=y_train)
+            self.model.fit(X_train, y_train, sample_weight=sample_weights)
+        else:
+            self.model.fit(X_train, y_train)
 
     def evaluate(self, X_test, y_test):
         """Evaluates the trained model."""
@@ -51,7 +57,7 @@ class Classifier:
             "recall": recall_score(y_test, y_pred, average="weighted"),
             "f1": f1_score(y_test, y_pred, average="weighted"),
             "confusion_matrix": confusion_matrix(y_test, y_pred),
-            "classification_report": classification_report(y_test, y_pred)
+            "classification_report": classification_report(y_test, y_pred, output_dict=True)
         }
         return metrics, y_pred
 
