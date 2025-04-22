@@ -7,7 +7,7 @@ import torch
 from itertools import combinations
 import logging
 from tqdm import tqdm
-
+np.random.seed(42)
 def random_downsample(features):
     """
     对特征矩阵进行随机降采样，保留一半的样本。
@@ -23,6 +23,7 @@ def random_downsample(features):
 
     # 计算保留一半节点的数量
     num_samples = num_nodes // 2
+    
 
     # 随机选择num_samples个节点的索引
     selected_indices = np.random.choice(num_nodes, num_samples, replace=False)
@@ -91,7 +92,7 @@ def load_and_normalize_datasets(data_paths, normalize=True):
                 normalized = scaler.transform(downsampled_feat.reshape(-1, orig_shape[1])).reshape(downsampled_feat.shape)
             else:
                 normalized = feat
-            print("Feature range after normalization: ", normalized.min(), normalized.max())
+            logging.info("Feature range after normalization: ", normalized.min(), normalized.max())
 
             edge_index = generate_full_edges(normalized.shape[0])
             graph_data = Data(
