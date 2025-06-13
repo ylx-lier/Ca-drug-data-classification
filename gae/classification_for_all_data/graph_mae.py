@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import logging
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import math
+from torch.utils.tensorboard import SummaryWriter
 
 def generate_full_edges(num_nodes):
     edges = list(combinations(range(num_nodes), 2))
@@ -140,7 +141,8 @@ def train_graph_mae(model, graph_data_list, paths, epochs=100, lr=5e-4, batch_si
     model.train()
     loss_values = []
     logging.info("Start training GraphMAE...")
-    
+    writer = SummaryWriter(paths["tensorboard_path"])
+
     for epoch in tqdm(range(epochs)):
         total_loss = 0
         for batch in loader:
@@ -160,13 +162,13 @@ def train_graph_mae(model, graph_data_list, paths, epochs=100, lr=5e-4, batch_si
             optimizer.step()
             
             total_loss += loss.item() * batch.num_graphs
-        
         scheduler.step()
         
         avg_loss = total_loss / len(graph_data_list)
         loss_values.append(avg_loss)
         logging.info(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.6f}")
-    
+        writer.add_scalar('Loss/train', total_loss / len(graph_data_list), epoch)
+        
     plt.figure(figsize=(10, 5))
     plt.plot(loss_values)
     plt.savefig(paths["loss_path"])

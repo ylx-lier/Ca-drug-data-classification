@@ -1,6 +1,7 @@
+#data_process.py
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler, LabelEncoder, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder, MinMaxScaler, RobustScaler
 from resize_interpolate import linear_interpolate
 from torch_geometric.data import Data
 import torch
@@ -72,6 +73,8 @@ def load_and_normalize_datasets(data_paths, normalize=True):
     if normalize and len(all_features) > 0:
         scaler = MinMaxScaler()
         scaler.fit(np.vstack([f.reshape(-1, all_features[0].shape[1]) for f in tqdm(all_features)]))
+        print("Scaler min:", scaler.data_min_)
+        print("Scaler max:", scaler.data_max_)
 
     
     # 第二阶段：应用归一化并创建图数据
@@ -92,7 +95,8 @@ def load_and_normalize_datasets(data_paths, normalize=True):
                 normalized = scaler.transform(downsampled_feat.reshape(-1, orig_shape[1])).reshape(downsampled_feat.shape)
             else:
                 normalized = feat
-            logging.info("Feature range after normalization: ", normalized.min(), normalized.max())
+            logging.info(f"Feature range after normalization: {normalized.min()} to {normalized.max()}")
+
 
             edge_index = generate_full_edges(normalized.shape[0])
             graph_data = Data(
@@ -112,15 +116,23 @@ def load_and_normalize_datasets(data_paths, normalize=True):
 
 # 辅助函数（与你提供的相同）
 def extract_label(filename):
-    """Extracts the label from the filename."""
-    return filename.split("_")[-2]
+    
+
+    parts = filename.split("_")
+    for token in parts:
+        if token in ['Fore', 'ACM']:
+            return token
+    raise ValueError(f"No valid label in'{filename}'")
+
 
 def encode_labels(labels):
-    """Encodes string labels into numeric labels (baseline vs non_baseline)."""
-    grouped_labels = np.array(["baseline" if label == "baseline" else "non_baseline" for label in labels])
     label_encoder = LabelEncoder()
-    encoded_labels = label_encoder.fit_transform(grouped_labels)
-    logging.info(f"Encoded labels mapping: {dict(zip(label_encoder.classes_, range(len(label_encoder.classes_))))}")
+    
+    # 手动指定顺序 ['Fore', 'ACM'] -> Fore 编码为 0，ACM 编码为 1
+    label_encoder.classes_ = np.array(['Fore', 'ACM'])
+    
+    encoded_labels = label_encoder.transform(labels)
+    logging.info(f"Manual label mapping: {dict(zip(label_encoder.classes_, range(len(label_encoder.classes_))))}")
     return encoded_labels, label_encoder
 
 def generate_full_edges(num_nodes):

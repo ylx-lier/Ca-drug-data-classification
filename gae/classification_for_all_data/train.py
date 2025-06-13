@@ -12,8 +12,8 @@ import datetime
 import pytz
 from pathlib import Path
 import logging
-
-
+from collections import Counter
+import numpy as np
 # 原有可视化函数保持不变
 def visualize_embeddings(embeddings, labels, label_encoder, save_path=None):
     tsne = TSNE(n_components=2)
@@ -33,6 +33,14 @@ def visualize_embeddings(embeddings, labels, label_encoder, save_path=None):
     else:
         plt.show()
     plt.close()
+
+def print_label_distribution(name, y, label_encoder):
+    """打印标签分布"""
+    labels_str = label_encoder.inverse_transform(y)
+    counter = Counter(labels_str)
+    logging.info(f"\n{name} 标签分布:")
+    for label, count in counter.items():
+        logging.info(f"  类别 '{label}': {count} 个样本")
 
 # 原有训练函数几乎不变，只修改了导入和模型初始化
 def train_and_evaluate(paths):
@@ -67,10 +75,17 @@ def train_and_evaluate(paths):
         X_train, X_test, y_train, y_test = train_test_split(
             embeddings, labels, test_size=0.8, random_state=42, stratify=labels
         )
+        print(np.unique(y_train))
+        print_label_distribution(f"{dataset_name} (train)", y_train, label_encoder)
+        print_label_distribution(f"{dataset_name} (test)", y_test, label_encoder)
+        
+        print("X_train type:", type(X_train))
+        print("y_train type:", type(y_train))
+        print("embeddings type:", type(embeddings))
         
         logging.info("Training classifier...")
         clf = Classifier()
-        clf.train(X_train, y_train, use_balanced_weights=True)
+        clf.train(X_train, y_train)
         metrics, y_pred = clf.evaluate(X_test, y_test,save_path=paths['result_dir']/f"{dataset_name}_confusion_matrix.png")
         
         results[dataset_name] = {

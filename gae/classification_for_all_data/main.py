@@ -83,7 +83,8 @@ if __name__ == "__main__":
         "embedding_plot_path": exp_dir / "figures/embeddings.png",
         "confusion_matrix_path": exp_dir / "figures/confusion_matrix.png",
         "model_save_path": exp_dir / "models/xgboost_model.json",
-        "loss_path": exp_dir / "figures/loss_curve.png"
+        "loss_path": exp_dir / "figures/loss_curve.png",
+        "tensorboard_path": exp_dir / "tensorboard"
     }
     for path in paths.values():
         dir_path = path.parent  # 取到目录名，比如 exp_dir/figures
