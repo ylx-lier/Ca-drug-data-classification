@@ -179,13 +179,13 @@ def train_graph_mae(model, graph_data_list, paths, epochs=100, lr=5e-4, batch_si
 def generate_graph_embeddings(model, graphs):
     model.eval()
     embeddings = []
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+    device = next(model.parameters()).device  # 获取模型实际所在设备
     
     for graph in graphs:
         num_nodes = graph.x.shape[0]
         edge_index = generate_full_edges(num_nodes).to(device)
-        x = torch.tensor(graph.x, dtype=torch.float).to(device)
+        # 修复：直接使用graph.x而不是重新转换tensor
+        x = graph.x.to(device) if hasattr(graph.x, 'to') else torch.tensor(graph.x, dtype=torch.float).to(device)
         batch = torch.zeros(num_nodes, dtype=torch.long).to(device)
         
         with torch.no_grad():

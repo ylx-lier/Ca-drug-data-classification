@@ -18,14 +18,21 @@ import numpy as np
 
 
 class Classifier:
-    def __init__(self):
+    def __init__(self, use_gpu=False):
+        # 强制使用CPU，避免与PyTorch冲突
+        tree_method = 'gpu_hist' if use_gpu else 'hist'
+        device = 'cuda' if use_gpu else 'cpu'
+        
         self.model = xgb.XGBClassifier(
             objective='binary:logistic',
             eval_metric='logloss',
             n_estimators=100,
             learning_rate=0.1,
-            tree_method='auto'
-
+            tree_method=tree_method,
+            device=device,
+            # 添加内存控制参数
+            max_delta_step=1,
+            verbosity=1
         )
 
     def train(self, X_train, y_train):
@@ -68,7 +75,8 @@ class Classifier:
         # 用最优超参数重新初始化模型
         self.model = xgb.XGBClassifier(
             **best_params,
-            eval_metric='mlogloss',
+            objective='binary:logistic',  # 保持与初始化一致
+            eval_metric='logloss',       # 保持与初始化一致
             n_estimators=100
         )
 

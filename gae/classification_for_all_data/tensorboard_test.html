@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TensorBoard测试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        iframe { width: 100%; height: 800px; border: 1px solid #ccc; }
+        .info { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .button { display: inline-block; padding: 10px 20px; background: #007acc; color: white; text-decoration: none; border-radius: 5px; margin: 5px; }
+        .button:hover { background: #005a9e; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 TensorBoard测试页面</h1>
+        
+        <div class="info">
+            <h3>📊 可用的TensorBoard实例:</h3>
+            <a href="http://localhost:6010" class="button" target="_blank">端口 6010 - 简单测试</a>
+            <a href="http://localhost:6009" class="button" target="_blank">端口 6009 - 汇总数据</a>
+            <a href="http://localhost:6007" class="button" target="_blank">端口 6007 - 原始数据</a>
+        </div>
+        
+        <div class="info">
+            <h3>🔍 诊断信息:</h3>
+            <p>如果上面的链接都打不开或者没有数据显示，可能的原因：</p>
+            <ul>
+                <li>TensorBoard服务未启动</li>
+                <li>数据文件格式问题</li>
+                <li>浏览器缓存问题</li>
+                <li>网络端口被阻止</li>
+            </ul>
+        </div>
+        
+        <h3>📈 嵌入式TensorBoard (端口6010):</h3>
+        <iframe src="http://localhost:6010"></iframe>
+        
+        <div class="info">
+            <h3>🛠️ 故障排除:</h3>
+            <ol>
+                <li>如果iframe显示空白，点击上面的按钮在新标签页打开</li>
+                <li>确保TensorBoard进程正在运行</li>
+                <li>尝试刷新页面（Ctrl+F5）</li>
+                <li>检查浏览器控制台是否有错误</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from train import train_and_evaluate
 import os
 from pathlib import Path
@@ -75,7 +76,11 @@ if __name__ == "__main__":
     exp_dir = create_experiment_dir()
     setup_experiment_logging(exp_dir)
     
-    logging.info("开始联合训练实验...")
+    # 模型选择 - 可以在这里修改
+    # 可选: "simple", "graphmae", "original"
+    model_type = "simple"  # 默认使用simple模型，推荐！
+    
+    logging.info(f"开始联合训练实验，使用模型: {model_type.upper()}")
     
     # 定义路径
     paths = {
@@ -86,14 +91,29 @@ if __name__ == "__main__":
         "loss_path": exp_dir / "figures/loss_curve.png",
         "tensorboard_path": exp_dir / "tensorboard"
     }
+    
+    # 创建所有必要的目录
     for path in paths.values():
-        dir_path = path.parent  # 取到目录名，比如 exp_dir/figures
-        dir_path.mkdir(parents=True, exist_ok=True)  # 如果不存在就创建，多层也没关系
+        if isinstance(path, Path):
+            if path.suffix:  # 如果是文件路径
+                path.parent.mkdir(parents=True, exist_ok=True)
+            else:  # 如果是目录路径
+                path.mkdir(parents=True, exist_ok=True)
+    
     # 执行联合训练和评估
-    results = train_and_evaluate(paths)
+    results = train_and_evaluate(paths, model_type=model_type)
     
     # 保存所有结果
+    results_with_config = {
+        "model_type": model_type,
+        "experiment_config": {
+            "model": model_type,
+            "timestamp": datetime.now(china_timezone).isoformat()
+        },
+        "results": results
+    }
+    
     with open(exp_dir / "all_results.json", "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(results_with_config, f, indent=2)
     
     logging.info("实验完成！")

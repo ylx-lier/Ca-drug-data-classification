@@ -3,3 +3,12 @@ NWR-GAE/
 useless_files/
 results/
 *.png
+*.json
+events.out.tfevents.*
+runs/
+logs/
+tensorboard_logs/
+**/__pycache__/
+*.pyc
+*.pyo
+.DS_Store
